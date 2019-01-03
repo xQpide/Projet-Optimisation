@@ -31,43 +31,6 @@ def find_var_sortante(A,b,index):
                 index_sortant=i
     return index_sortant
 
-def pivot2(val_entrant,val_sortant,A,var_base,base,VE,coeff,b,objec):
-    """transformation du tableau par le pivot determiné par les variables entrantes et sortantes"""
-    val_entrant=base.index(val_entrant)
-    val_sortant=var_base.index(val_sortant)
-    btemp=np.copy(b)
-    Atemp=np.copy(A)
-    coefftemp=np.copy(coeff)
-    val_pivot=A[val_sortant][val_entrant]
-    Atemp[val_sortant]=A[val_sortant]
-
-    for i in range(len(base)):  
-        if i ==val_entrant:
-            coefftemp[i]=0
-            for j in range(len(A)):
-                if j != val_sortant:
-                    Atemp[j][i]=0
-        
-        else:
-            for j in range(len(A)):
-                if j!=val_sortant:
-                    Atemp[j][i]=val_pivot*A[j][i]-((A[j][val_entrant]*A[val_sortant][i]))
-
-    for i in range(len(coeff)):
-        if i != val_entrant:
-            coefftemp[i]=val_pivot*coeff[i]-((coeff[val_entrant]*A[val_sortant][i]))
-    
-    for j in range(len(b)):
-            if j!=val_sortant:
-                btemp[j]=val_pivot*b[j]-((b[val_sortant]*A[j][val_entrant]))
-            else:
-                btemp[j]=b[j]
-    valtemp=b[val_sortant]/val_pivot
-    objectemp=objec-coeff[val_entrant]*valtemp
-    
-    return Atemp/(val_pivot),coefftemp/(val_pivot),btemp/(val_pivot),objectemp
-
-
 def pivot(val_entrant,val_sortant,A,var_base,base,VE,coeff,b,objec):
     zero=np.zeros(len(A))
     """transformation du tableau par le pivot determiné par les variables entrantes et sortantes"""
@@ -77,71 +40,26 @@ def pivot(val_entrant,val_sortant,A,var_base,base,VE,coeff,b,objec):
     tmp1=A.T[val_entrant]
     tmp2=A[val_sortant]
     out=np.outer(tmp1,tmp2)
-    #Atemp
+
     Atemp=val_pivot*A-out
     
     zero[val_sortant]=Atemp[val_sortant][val_entrant]
     Atemp.T[val_entrant]=zero
-    """for i in range(len(base)):
-        for j in range(len(A)):
-            if j != val_sortant:
-                if i ==val_entrant:
-                    Atemp[j][i]=0"""
+
     Atemp.T[val_entrant]=np.zeros(len(A))
-    #print(Atemp.T[val_entrant])
     Atemp[val_sortant]=A[val_sortant]
-    #-------------------------------------------------------
-    #btemp
-    
+
     btemp=val_pivot*b-b[val_sortant]*tmp1
     btemp[val_sortant]=b[val_sortant]
-    #-----------------
-    #coeff temp
-    
+
     coefftemp=val_pivot*coeff-coeff[val_entrant]*tmp2 
     coefftemp[val_entrant]=0
-    #--------------
-    """t=time.time()
-    
-    for i in range(len(base)):     
-        if i ==val_entrant:
-            coefftemp[i]=0
-        for j in range(len(A)):
-            print(len(base))
-            print(len(A))
-            if j != val_sortant:
-                if i ==val_entrant:
-                    Atemp[j][i]=0
-                else:
-                    t=time.time()
-                    Atemp[j][i]=val_pivot*A[j][i]-((A[j][val_entrant]*A[val_sortant][i])) 
-                    #print("temps un seul calcul=",time.time()-t)
-    print(time.time()-t)
-    for i in range(len(coeff)):
-        if i != val_entrant:
-            coefftemp[i]=val_pivot*coeff[i]-((coeff[val_entrant]*A[val_sortant][i]))
-    
-    for j in range(len(b)):
-            if j!=val_sortant:
-                btemp[j]=val_pivot*b[j]-b[val_sortant]*A[j][val_entrant]
-            else:
-                btemp[j]=b[j]
-    """        
-    
+
     valtemp=b[val_sortant]/val_pivot
     objectemp=objec-coeff[val_entrant]*valtemp
     return Atemp/(val_pivot),coefftemp/(val_pivot),btemp/(val_pivot),objectemp
 
-
-def simplex(f,A,b, verbose=False):
-
-    """minimise fx s.c Ax<=b
-    Ce programme ne vérifie pas que le probleme a une solution.
-    param:
-    :verbose: Affiche l'évolution de la fonction objective au cours des itérations et le numéro de l'itération en cours 
-    """
-    tableau_objectif=[]
-    f=-f
+def init_simplex(f,A,b):
     cpt=0
     list_var=[]
     for i in range(len(f)):
@@ -166,7 +84,7 @@ def simplex(f,A,b, verbose=False):
             dic[var_exces[-1]]=var_artificielle[-1]
             index_var_sup[var_exces[-1]]=i
         else:
-            var_exces.append(None)        
+            var_exces.append(None)
         liaison[var_artificielle[-1]]=var_exces[-1]
         liaison2[var_exces[-1]]=var_artificielle[-1]
     var_base=[]
@@ -201,6 +119,9 @@ def simplex(f,A,b, verbose=False):
         mat.append(np.concatenate((c[indice],tmp)))
     b=np.array(btemp)
     c=np.array(mat)
+    return b,c,var_base,list_var,var_exces,var_artificielle
+
+def init_Z(list_var,var_exces,f,b,var_base,c):
     Z=[]
     objec=0
     for i in range(len(list_var)):
@@ -220,30 +141,31 @@ def simplex(f,A,b, verbose=False):
                             somme-=c[j][i]
             Z.append(somme)
     Z=np.array(Z)
-    VE=var_artificielle+var_exces 
-    boul2=True
-    itera=0
-    while(boul2):
+    return Z,objec
+
+def simplex_p1(itera,Z,c,b,var_base,list_var,VE,objec,verbose):
+    """phase 1"""
+    while True:
         index_entrant=find_max(Z)
         if index_entrant==None:
             break
         index_sortant=find_var_sortante(c,b,index_entrant)
         if index_sortant==None:
-            break        
+            break
         var_base[index_sortant]=list_var[index_entrant]
         
         c,Z,b,objec=pivot(list_var[index_entrant],var_base[index_sortant],c,var_base,list_var,VE,Z,b,objec)
         itera+=1
         if verbose:
             print("iteration={}".format(itera))
-    t=time.time()
+    return c,Z,b,objec
+
+def transi_p1_p2(f,c,Z,list_var,var_exces,VE,objec,var_base,b):
+    """transition between phase 1 and 2"""
     c=c.T
     tmp=[]
     cpt=0
     p=len(c)
-    if abs(objec) >10e-3:
-        print("pas de solution")
-        return
     for i in range(p):
         if round(Z[i])!=1 and list_var[i] not in var_exces:
             cpt+=1
@@ -268,18 +190,19 @@ def simplex(f,A,b, verbose=False):
     for a in list_var:
         if a!=None:
             somme=-valeur_variable[a]
-            for j in range(len(var_base)):                
-                somme+=valeur_variable[var_base[j]]*c[j][list_var2.index(a)]  
+            for j in range(len(var_base)):
+                somme+=valeur_variable[var_base[j]]*c[j][list_var2.index(a)]
             Z[i]=somme
             i+=1
     for j in range(len(b)):
-        objec+=valeur_variable[var_base[j]]*b[j]   
-    boul2=True
+        objec+=valeur_variable[var_base[j]]*b[j]
+
+    return var_base,list_var2,c,Z,objec
+
+def simplex_p2(itera,Z,c,b,var_base,list_var2,VE,objec,tableau_objectif,verbose):
+    """phase 2"""
     itera2=1
-    tableau_objectif.append(-objec)
-    itera+=1
-    print("temps=",time.time()-t)
-    while(boul2):      
+    while True:
         index_entrant=find_max(Z)
         if index_entrant==None:
             break
@@ -292,8 +215,37 @@ def simplex(f,A,b, verbose=False):
         itera+=1
         itera2+=1
         if verbose:
-            print("iteration={}".format(itera))       
-    #recuperation du resultat
+            print("iteration={}".format(itera))
+    return Z,c,b,objec,tableau_objectif,itera2
+
+def simplex(f,A,b, verbose=True):
+    
+    """minimise fx s.c Ax<=b
+    Ce programme ne vérifie pas que le probleme a une solution.
+    param:
+    :verbose: Affiche l'évolution de la fonction objective au cours des itérations et le numéro de l'itération en cours 
+    """
+    f=-f
+
+    b,c,var_base,list_var,var_exces,var_artificielle=init_simplex(f,A,b)
+    Z,objec=init_Z(list_var,var_exces,f,b,var_base,c)
+    tableau_objectif=[]
+    VE=var_artificielle+var_exces 
+    itera=0
+    c,Z,b,objec=simplex_p1(itera,Z,c,b,var_base,list_var,VE,objec,verbose)
+
+
+    if abs(objec) >10e-3:
+        print("pas de solution")
+        return#no solution
+
+    var_base,list_var2,c,Z,objec=transi_p1_p2(f,c,Z,list_var,var_exces,VE,objec,var_base,b)
+    tableau_objectif.append(-objec)
+    itera+=1
+    Z,c,b,objec,tableau_objectif,itera2=simplex_p2(itera,Z,c,b,var_base,list_var2,VE,objec,tableau_objectif,verbose)
+
+
+
     x=[]
     for i in range(len(f)):
         if list_var2[i] in var_base:
@@ -305,7 +257,7 @@ def simplex(f,A,b, verbose=False):
         plt.xlabel("Iteration")
         plt.ylabel("Valeur de la fonction objectif")
         plt.title("Evolution de la valeur de la fonction objectif en fonction des itérations")
-        plt.legend()
+        #plt.legend()
         plt.show()
     
     return x
@@ -328,16 +280,5 @@ def main():
     print("res")
     print(res)
     
-def main2():
-    b = np.array([-140,-160,-48]).T
-    C = np.array([[5,10,0],[0,16,10],[10,0,8]])
-    d = np.array([10,13,14]).T
-    res1=linprog(b,C,d,bounds=(None,None))
-    res2=simplex(b,C,d)
-    print("Optimisation sous contrainte avec z={}\n C={}\net d={}".format(b,C,d))
-    print("resultat linprog")
-    print(res1['x'])
-    print("resultat simplexX")
-    print(res2)
 if __name__=="__main__":    
-    main2()
+    main()
